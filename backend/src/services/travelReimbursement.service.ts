@@ -3,6 +3,7 @@ import prisma from '../utils/prisma';
 import { AppError } from '../utils/errors';
 import { parsePagination, paginatedResponse } from '../utils/pagination';
 import { toDateOnly } from '../utils/date';
+import { sendTravelStatusEmail } from './email.service';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -120,7 +121,7 @@ export async function approveReimbursement(
 ) {
   const item = await prisma.travelReimbursement.findUnique({
     where: { id },
-    include: { employee: { select: { managerId: true } } },
+    include: { employee: { select: { managerId: true, firstName: true, lastName: true, user: { select: { email: true } } } } },
   });
   if (!item) throw new AppError('Travel reimbursement not found', 404);
 
@@ -135,19 +136,22 @@ export async function approveReimbursement(
     throw new AppError('This reimbursement has already been reviewed', 409);
   }
 
-  return prisma.travelReimbursement.update({
+  const updated = await prisma.travelReimbursement.update({
     where: { id },
-    data: {
-      status: ApprovalStatus.APPROVED,
-      approvedBy: approvedByUserId,
-      approvalRemark: approvalRemark?.trim() || null,
-    },
-    include: {
-      employee: {
-        select: { id: true, employeeCode: true, firstName: true, lastName: true },
-      },
-    },
+    data: { status: ApprovalStatus.APPROVED, approvedBy: approvedByUserId, approvalRemark: approvalRemark?.trim() || null },
+    include: { employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true } } },
   });
+
+  sendTravelStatusEmail(
+    item.employee.user.email,
+    `${item.employee.firstName} ${item.employee.lastName}`,
+    'APPROVED',
+    item.travelDate.toISOString().slice(0, 10),
+    item.amount,
+    approvalRemark,
+  );
+
+  return updated;
 }
 
 export async function rejectReimbursement(
@@ -158,7 +162,7 @@ export async function rejectReimbursement(
 ) {
   const item = await prisma.travelReimbursement.findUnique({
     where: { id },
-    include: { employee: { select: { managerId: true } } },
+    include: { employee: { select: { managerId: true, firstName: true, lastName: true, user: { select: { email: true } } } } },
   });
   if (!item) throw new AppError('Travel reimbursement not found', 404);
 
@@ -173,12 +177,19 @@ export async function rejectReimbursement(
     throw new AppError('This reimbursement has already been reviewed', 409);
   }
 
-  return prisma.travelReimbursement.update({
+  const updated = await prisma.travelReimbursement.update({
     where: { id },
-    data: {
-      status: ApprovalStatus.REJECTED,
-      approvedBy: approvedByUserId,
-      approvalRemark: approvalRemark?.trim() || null,
-    },
+    data: { status: ApprovalStatus.REJECTED, approvedBy: approvedByUserId, approvalRemark: approvalRemark?.trim() || null },
   });
+
+  sendTravelStatusEmail(
+    item.employee.user.email,
+    `${item.employee.firstName} ${item.employee.lastName}`,
+    'REJECTED',
+    item.travelDate.toISOString().slice(0, 10),
+    item.amount,
+    approvalRemark,
+  );
+
+  return updated;
 }

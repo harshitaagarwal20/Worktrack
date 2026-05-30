@@ -3,6 +3,7 @@ import prisma from '../utils/prisma';
 import { AppError } from '../utils/errors';
 import { parsePagination, paginatedResponse } from '../utils/pagination';
 import { toDateOnly } from '../utils/date';
+import { sendLeaveStatusEmail } from './email.service';
 
 async function requireEmployee(userId: string) {
   const employee = await prisma.employee.findUnique({ where: { userId } });
@@ -106,7 +107,7 @@ export async function approveLeave(
 ) {
   const leave = await prisma.leaveRequest.findUnique({
     where: { id },
-    include: { employee: { select: { managerId: true } } },
+    include: { employee: { select: { managerId: true, firstName: true, lastName: true, user: { select: { email: true } } } } },
   });
   if (!leave) throw new AppError('Leave request not found', 404);
 
@@ -121,10 +122,16 @@ export async function approveLeave(
     throw new AppError('Leave request has already been reviewed', 409);
   }
 
-  return prisma.leaveRequest.update({
+  const updated = await prisma.leaveRequest.update({
     where: { id },
     data: { status: ApprovalStatus.APPROVED, approvedBy: approvedByUserId },
   });
+
+  const { email } = leave.employee.user;
+  const name = `${leave.employee.firstName} ${leave.employee.lastName}`;
+  sendLeaveStatusEmail(email, name, 'APPROVED', leave.fromDate.toISOString().slice(0, 10), leave.toDate.toISOString().slice(0, 10));
+
+  return updated;
 }
 
 export async function rejectLeave(
@@ -134,7 +141,7 @@ export async function rejectLeave(
 ) {
   const leave = await prisma.leaveRequest.findUnique({
     where: { id },
-    include: { employee: { select: { managerId: true } } },
+    include: { employee: { select: { managerId: true, firstName: true, lastName: true, user: { select: { email: true } } } } },
   });
   if (!leave) throw new AppError('Leave request not found', 404);
 
@@ -149,8 +156,14 @@ export async function rejectLeave(
     throw new AppError('Leave request has already been reviewed', 409);
   }
 
-  return prisma.leaveRequest.update({
+  const updated = await prisma.leaveRequest.update({
     where: { id },
     data: { status: ApprovalStatus.REJECTED, approvedBy: approvedByUserId },
   });
+
+  const { email } = leave.employee.user;
+  const name = `${leave.employee.firstName} ${leave.employee.lastName}`;
+  sendLeaveStatusEmail(email, name, 'REJECTED', leave.fromDate.toISOString().slice(0, 10), leave.toDate.toISOString().slice(0, 10));
+
+  return updated;
 }

@@ -3,6 +3,7 @@ import prisma from '../utils/prisma';
 import { AppError } from '../utils/errors';
 import { parsePagination, paginatedResponse } from '../utils/pagination';
 import { toDateOnly } from '../utils/date';
+import { sendOutstationStatusEmail } from './email.service';
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -135,7 +136,7 @@ export async function approveClaim(
 ) {
   const item = await prisma.outstationClaim.findUnique({
     where: { id },
-    include: { employee: { select: { managerId: true } } },
+    include: { employee: { select: { managerId: true, firstName: true, lastName: true, user: { select: { email: true } } } } },
   });
   if (!item) throw new AppError('Outstation claim not found', 404);
   if (item.status !== ApprovalStatus.PENDING) throw new AppError('This claim has already been reviewed', 409);
@@ -147,17 +148,24 @@ export async function approveClaim(
     }
   }
 
-  return prisma.outstationClaim.update({
+  const updated = await prisma.outstationClaim.update({
     where: { id },
-    data: {
-      status: ApprovalStatus.APPROVED,
-      approvedBy: approvedByUserId,
-      approvalRemark: approvalRemark?.trim() || null,
-    },
-    include: {
-      employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true } },
-    },
+    data: { status: ApprovalStatus.APPROVED, approvedBy: approvedByUserId, approvalRemark: approvalRemark?.trim() || null },
+    include: { employee: { select: { id: true, employeeCode: true, firstName: true, lastName: true } } },
   });
+
+  sendOutstationStatusEmail(
+    item.employee.user.email,
+    `${item.employee.firstName} ${item.employee.lastName}`,
+    'APPROVED',
+    item.fromDate.toISOString().slice(0, 10),
+    item.toDate.toISOString().slice(0, 10),
+    item.destination,
+    item.totalAmount,
+    approvalRemark,
+  );
+
+  return updated;
 }
 
 export async function rejectClaim(
@@ -168,7 +176,7 @@ export async function rejectClaim(
 ) {
   const item = await prisma.outstationClaim.findUnique({
     where: { id },
-    include: { employee: { select: { managerId: true } } },
+    include: { employee: { select: { managerId: true, firstName: true, lastName: true, user: { select: { email: true } } } } },
   });
   if (!item) throw new AppError('Outstation claim not found', 404);
   if (item.status !== ApprovalStatus.PENDING) throw new AppError('This claim has already been reviewed', 409);
@@ -180,12 +188,21 @@ export async function rejectClaim(
     }
   }
 
-  return prisma.outstationClaim.update({
+  const updated = await prisma.outstationClaim.update({
     where: { id },
-    data: {
-      status: ApprovalStatus.REJECTED,
-      approvedBy: approvedByUserId,
-      approvalRemark: approvalRemark?.trim() || null,
-    },
+    data: { status: ApprovalStatus.REJECTED, approvedBy: approvedByUserId, approvalRemark: approvalRemark?.trim() || null },
   });
+
+  sendOutstationStatusEmail(
+    item.employee.user.email,
+    `${item.employee.firstName} ${item.employee.lastName}`,
+    'REJECTED',
+    item.fromDate.toISOString().slice(0, 10),
+    item.toDate.toISOString().slice(0, 10),
+    item.destination,
+    item.totalAmount,
+    approvalRemark,
+  );
+
+  return updated;
 }
