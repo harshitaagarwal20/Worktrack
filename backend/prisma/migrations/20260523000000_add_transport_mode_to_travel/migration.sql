@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE `travel_reimbursements` ADD COLUMN `transportMode` ENUM('TWO_WHEELER', 'FOUR_WHEELER', 'AUTO_RICKSHAW', 'PUBLIC_TRANSPORT', 'TRAIN', 'FLIGHT', 'OTHER') NULL;

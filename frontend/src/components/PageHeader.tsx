@@ -1,0 +1,19 @@
+import React from 'react';
+
+interface Props {
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+}
+
+export default function PageHeader({ title, subtitle, action }: Props) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-3 mb-5 sm:mb-6">
+      <div className="min-w-0">
+        <h1 className="text-lg sm:text-xl font-bold text-gray-900 leading-tight">{title}</h1>
+        {subtitle && <p className="text-sm text-gray-500 mt-0.5 sm:mt-1">{subtitle}</p>}
+      </div>
+      {action && <div className="flex-shrink-0">{action}</div>}
+    </div>
+  );
+}

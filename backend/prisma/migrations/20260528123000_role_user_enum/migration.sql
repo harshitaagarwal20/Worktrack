@@ -1,0 +1,4 @@
+-- Rename role enum values from EMPLOYEE to USER in the users table
+ALTER TABLE `users` MODIFY `role` ENUM('EMPLOYEE', 'HR_ADMIN', 'DEPARTMENT_HEAD', 'USER') NOT NULL DEFAULT 'EMPLOYEE';
+UPDATE `users` SET `role` = 'USER' WHERE `role` = 'EMPLOYEE';
+ALTER TABLE `users` MODIFY `role` ENUM('USER', 'HR_ADMIN', 'DEPARTMENT_HEAD') NOT NULL DEFAULT 'USER';

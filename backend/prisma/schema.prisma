@@ -1,0 +1,277 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  HR_ADMIN
+  DEPARTMENT_HEAD
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  WORK_FROM_HOME
+  LEAVE
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PayrollStatus {
+  DRAFT
+  FINALIZED
+  PAID
+}
+
+enum PayrollItemType {
+  EARNING
+  DEDUCTION
+}
+
+enum TransportMode {
+  BIKE
+  SCOOTY
+  AUTO
+  CAB
+  CAR
+  TRAIN
+  AIRPLANE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee                     Employee?
+  approvedAttendances          Attendance[]          @relation("AttendanceApprover")
+  generatedPayrolls            Payroll[]             @relation("PayrollGenerator")
+  approvedLeaves               LeaveRequest[]        @relation("LeaveApprover")
+  approvedTravelReimbursements TravelReimbursement[] @relation("TravelReimbApprover")
+  approvedOutstationClaims     OutstationClaim[]     @relation("OutstationClaimApprover")
+
+  @@map("users")
+}
+
+model Employee {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  employeeCode  String    @unique
+  firstName     String
+  lastName      String
+  phone         String?
+  dateOfJoining DateTime
+  designation   String
+  monthlySalary  Float
+  isActive      Boolean   @default(true)
+  worksSundays  Boolean   @default(false)
+  managerId     String?
+
+  user                 User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manager              Employee?             @relation("ManagerSubordinates", fields: [managerId], references: [id])
+  subordinates         Employee[]            @relation("ManagerSubordinates")
+  attendances          Attendance[]
+  workReports          WorkReport[]
+  payrolls             Payroll[]
+  leaveRequests        LeaveRequest[]
+  travelReimbursements TravelReimbursement[]
+  outstationClaims     OutstationClaim[]
+
+  @@index([employeeCode])
+  @@index([managerId])
+  @@map("employees")
+}
+
+model Attendance {
+  id              String         @id @default(cuid())
+  employeeId      String
+  date            DateTime       @db.Date
+  status          AttendanceStatus?
+  checkIn         DateTime?
+  checkOut        DateTime?
+  workHours       Float?
+  location        String?
+  locationAddress String?
+  latitude        Float?
+  longitude       Float?
+  remarks         String?
+  approvalStatus  ApprovalStatus @default(PENDING)
+  approvedBy      String?
+  createdAt       DateTime       @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  approver User?    @relation("AttendanceApprover", fields: [approvedBy], references: [id])
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@index([date])
+  @@map("attendances")
+}
+
+model WorkReport {
+  id           String   @id @default(cuid())
+  employeeId   String
+  date         DateTime @db.Date
+  workingHours Float
+  remarks      String?
+  createdAt    DateTime @default(now())
+
+  employee Employee          @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  entries  WorkReportEntry[]
+
+  @@unique([employeeId, date])
+  @@index([employeeId])
+  @@index([date])
+  @@map("work_reports")
+}
+
+model WorkReportEntry {
+  id             String  @id @default(cuid())
+  workReportId   String
+  clientName     String?
+  tasksCompleted String  @db.Text
+
+  workReport WorkReport @relation(fields: [workReportId], references: [id], onDelete: Cascade)
+
+  @@index([workReportId])
+  @@map("work_report_entries")
+}
+
+model Holiday {
+  id        String   @id @default(cuid())
+  name      String
+  date      DateTime @db.Date
+  isPaid    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([date])
+  @@map("holidays")
+}
+
+model Payroll {
+  id               String        @id @default(cuid())
+  employeeId       String
+  month            Int
+  year             Int
+  totalWorkingDays Int
+  presentDays      Float
+  absentDays       Float
+  halfDays         Float
+  paidHolidays     Int
+  unpaidHolidays   Int
+  approvedLeaves   Int
+  grossSalary      Float
+  totalDeductions  Float
+  manualAdjustment Float         @default(0)
+  adjustmentRemark String?
+  netSalary        Float
+  status           PayrollStatus @default(DRAFT)
+  generatedBy      String
+  createdAt        DateTime      @default(now())
+
+  employee             Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  generator            User                  @relation("PayrollGenerator", fields: [generatedBy], references: [id])
+  items                PayrollItem[]
+  travelReimbursements TravelReimbursement[]
+
+  @@unique([employeeId, month, year])
+  @@index([employeeId])
+  @@index([month, year])
+  @@map("payrolls")
+}
+
+model PayrollItem {
+  id        String        @id @default(cuid())
+  payrollId String
+  label     String
+  type      PayrollItemType
+  amount    Float
+
+  payroll Payroll @relation(fields: [payrollId], references: [id], onDelete: Cascade)
+
+  @@index([payrollId])
+  @@map("payroll_items")
+}
+
+model LeaveRequest {
+  id         String         @id @default(cuid())
+  employeeId String
+  fromDate   DateTime       @db.Date
+  toDate     DateTime       @db.Date
+  reason     String
+  status     ApprovalStatus @default(PENDING)
+  approvedBy String?
+  createdAt  DateTime       @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  approver User?    @relation("LeaveApprover", fields: [approvedBy], references: [id])
+
+  @@index([employeeId])
+  @@index([fromDate, toDate])
+  @@map("leave_requests")
+}
+
+model TravelReimbursement {
+  id             String         @id @default(cuid())
+  employeeId     String
+  travelDate     DateTime       @db.Date
+  clientName     String
+  reason         String
+  transportMode  TransportMode?
+  ratePerKm      Float
+  kilometers     Float
+  amount         Float
+  status         ApprovalStatus @default(PENDING)
+  approvedBy     String?
+  approvalRemark String?
+  payrollId      String?
+  createdAt      DateTime       @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  approver User?    @relation("TravelReimbApprover", fields: [approvedBy], references: [id])
+  payroll  Payroll? @relation(fields: [payrollId], references: [id])
+
+  @@index([employeeId])
+  @@index([travelDate])
+  @@map("travel_reimbursements")
+}
+
+model OutstationClaim {
+  id                   String         @id @default(cuid())
+  employeeId           String
+  fromDate             DateTime       @db.Date
+  toDate               DateTime       @db.Date
+  destination          String
+  purpose              String         @db.Text
+  transportMode        TransportMode?
+  travelExpense        Float          @default(0)
+  foodExpense          Float          @default(0)
+  accommodationExpense Float          @default(0)
+  otherExpense         Float          @default(0)
+  otherExpenseNote     String?
+  totalAmount          Float
+  status               ApprovalStatus @default(PENDING)
+  approvedBy           String?
+  approvalRemark       String?
+  createdAt            DateTime       @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  approver User?    @relation("OutstationClaimApprover", fields: [approvedBy], references: [id])
+
+  @@index([employeeId])
+  @@index([fromDate])
+  @@map("outstation_claims")
+}
