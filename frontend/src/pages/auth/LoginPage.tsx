@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Building2, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { forgotPassword } from '../../api/auth';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
 
@@ -12,6 +13,26 @@ export default function LoginPage() {
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
   const [showPass, setShowPass] = useState(false);
+
+  const [showForgot, setShowForgot]         = useState(false);
+  const [forgotEmail, setForgotEmail]       = useState('');
+  const [forgotLoading, setForgotLoading]   = useState(false);
+  const [forgotError, setForgotError]       = useState('');
+  const [tempPassword, setTempPassword]     = useState('');
+
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError('');
+    setForgotLoading(true);
+    try {
+      const res = await forgotPassword(forgotEmail);
+      setTempPassword(res.tempPassword);
+    } catch (err) {
+      setForgotError(err instanceof Error ? err.message : 'Reset failed');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +93,15 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => { setShowForgot(true); setTempPassword(''); setForgotError(''); setForgotEmail(''); }}
+              className="text-xs text-primary hover:underline"
+            >
+              Forgot password?
+            </button>
+          </div>
           <Button type="submit" loading={loading} className="w-full mt-2" size="lg">
             Sign In
           </Button>
@@ -84,6 +114,45 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
+
+      {/* Forgot Password Modal */}
+      {showForgot && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Reset Password</h2>
+            <p className="text-sm text-gray-500 mb-4">Enter your email to receive a temporary password.</p>
+
+            {tempPassword ? (
+              <div className="space-y-4">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-xl text-sm text-green-700">
+                  <p className="font-semibold mb-1">Your temporary password:</p>
+                  <p className="text-lg font-mono tracking-widest text-green-800">{tempPassword}</p>
+                  <p className="mt-2 text-xs text-green-600">Use this to log in, then change your password from your profile.</p>
+                </div>
+                <Button className="w-full" onClick={() => setShowForgot(false)}>Close</Button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgot} className="space-y-4">
+                {forgotError && (
+                  <div className="px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">{forgotError}</div>
+                )}
+                <Input
+                  label="Email address"
+                  type="email"
+                  value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)}
+                  required
+                  autoFocus
+                />
+                <div className="flex gap-3">
+                  <Button type="button" variant="secondary" className="flex-1" onClick={() => setShowForgot(false)}>Cancel</Button>
+                  <Button type="submit" loading={forgotLoading} className="flex-1">Reset</Button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

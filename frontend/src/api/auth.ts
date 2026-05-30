@@ -25,3 +25,8 @@ export async function getMe(): Promise<AuthUser> {
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   await client.put('/auth/change-password', { currentPassword, newPassword });
 }
+
+export async function forgotPassword(email: string): Promise<{ tempPassword: string }> {
+  const res = await client.post('/auth/forgot-password', { email });
+  return res.data;
+}

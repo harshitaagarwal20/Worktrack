@@ -113,6 +113,17 @@ export async function signupUser(data: {
   };
 }
 
+export async function resetPassword(email: string) {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) throw new Error('No account found with this email');
+
+  const tempPassword = Math.random().toString(36).slice(-8) + Math.floor(Math.random() * 100);
+  const hashed = await bcrypt.hash(tempPassword, 10);
+  await prisma.user.update({ where: { id: user.id }, data: { password: hashed } });
+
+  return { tempPassword };
+}
+
 export async function getMe(userId: string) {
   const user = await prisma.user.findUnique({
     where: { id: userId },

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import { loginUser, signupUser, getMe, changePassword as changePasswordService } from '../services/auth.service';
+import { loginUser, signupUser, getMe, changePassword as changePasswordService, resetPassword as resetPasswordService } from '../services/auth.service';
 import { AuthRequest } from '../types';
 
 const loginSchema = z.object({
@@ -71,6 +71,18 @@ export async function changePassword(req: AuthRequest, res: Response): Promise<v
     res.status(200).json({ success: true, message: 'Password changed successfully' });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to change password';
+    res.status(400).json({ success: false, message });
+  }
+}
+
+export async function forgotPassword(req: Request, res: Response): Promise<void> {
+  try {
+    const { email } = req.body;
+    if (!email) { res.status(400).json({ success: false, message: 'Email is required' }); return; }
+    const { tempPassword } = await resetPasswordService(email);
+    res.status(200).json({ success: true, tempPassword });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Reset failed';
     res.status(400).json({ success: false, message });
   }
 }
