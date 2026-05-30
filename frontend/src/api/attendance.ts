@@ -1,7 +1,7 @@
 import client from './client';
 import { Attendance, PaginatedResponse } from '../types';
 
-export async function checkIn(data: { date: string; checkInTime: string }): Promise<Attendance> {
+export async function checkIn(data: { date: string; checkInTime: string; latitude?: number; longitude?: number; locationAddress?: string }): Promise<Attendance> {
   const res = await client.post('/attendance/checkin', data);
   return res.data.data;
 }

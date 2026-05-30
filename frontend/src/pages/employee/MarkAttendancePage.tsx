@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { format } from 'date-fns';
-import { ArrowRight, CalendarDays, Clock, LogIn, LogOut, Timer } from 'lucide-react';
+import { ArrowRight, CalendarDays, Clock, LogIn, LogOut, MapPin, Timer } from 'lucide-react';
 import * as attendanceApi from '../../api/attendance';
 import { Attendance } from '../../types';
 import Button from '../../components/Button';
@@ -81,16 +81,16 @@ export default function MarkAttendancePage() {
 
   const [screen, setScreen] = useState<ScreenState>('loading');
   const [attendance, setAttendance] = useState<Attendance | null>(null);
-  const [now, setNow] = useState(new Date());
   const [duration, setDuration] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [location, setLocation] = useState<{ lat: number; lng: number; address?: string } | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
 
   const clockRef = useRef<ReturnType<typeof setInterval>>();
   const durationRef = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
-    clockRef.current = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(clockRef.current);
   }, []);
 
@@ -121,14 +121,44 @@ export default function MarkAttendancePage() {
     }
   }
 
+  const getLocation = (): Promise<{ lat: number; lng: number; address?: string }> =>
+    new Promise((resolve, reject) => {
+      if (!navigator.geolocation) { reject(new Error('Geolocation not supported')); return; }
+      navigator.geolocation.getCurrentPosition(
+        async pos => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          let address: string | undefined;
+          try {
+            const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+            const j = await r.json();
+            address = j.display_name as string;
+          } catch { /* address is optional */ }
+          resolve({ lat, lng, address });
+        },
+        err => reject(new Error(err.message)),
+        { timeout: 8000 }
+      );
+    });
+
   const handleCheckIn = async () => {
     setSubmitting(true);
     setError(null);
+    setLocationError(null);
+
+    let loc: { lat: number; lng: number; address?: string } | null = null;
+    try {
+      loc = await getLocation();
+      setLocation(loc);
+    } catch (e) {
+      setLocationError(e instanceof Error ? e.message : 'Location unavailable');
+    }
 
     try {
       const rec = await attendanceApi.checkIn({
         date: today,
         checkInTime: new Date().toISOString(),
+        ...(loc && { latitude: loc.lat, longitude: loc.lng, locationAddress: loc.address }),
       });
       setAttendance(rec);
       setScreen('checked-in');
@@ -213,6 +243,20 @@ export default function MarkAttendancePage() {
           </div>
         </div>
       </div>
+
+      {locationError && (
+        <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-2.5 text-xs text-amber-700 shadow-sm">
+          <MapPin className="inline h-3 w-3 mr-1" />
+          Location not captured: {locationError}
+        </div>
+      )}
+
+      {location && (
+        <div className="mb-3 rounded-2xl border border-blue-100 bg-blue-50/80 px-4 py-2.5 text-xs text-blue-700 shadow-sm flex items-start gap-2">
+          <MapPin className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+          <span className="line-clamp-2">{location.address ?? `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`}</span>
+        </div>
+      )}
 
       {error && (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50/80 px-4 py-2.5 text-xs text-red-700 shadow-sm md:text-sm">

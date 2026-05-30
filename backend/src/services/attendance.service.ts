@@ -32,6 +32,9 @@ export async function checkIn(
   data: {
     date: string;
     checkInTime: string;
+    latitude?: number;
+    longitude?: number;
+    locationAddress?: string;
   },
 ) {
   const employee = await requireEmployee(userId);
@@ -53,6 +56,9 @@ export async function checkIn(
       date,
       checkIn: new Date(data.checkInTime),
       approvalStatus: ApprovalStatus.PENDING,
+      ...(data.latitude !== undefined && { latitude: data.latitude }),
+      ...(data.longitude !== undefined && { longitude: data.longitude }),
+      ...(data.locationAddress && { locationAddress: data.locationAddress }),
     },
   });
 }

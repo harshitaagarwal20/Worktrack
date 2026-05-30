@@ -10,6 +10,9 @@ import * as svc from '../services/attendance.service';
 const checkInSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD format'),
   checkInTime: z.string().datetime({ offset: true }),
+  latitude: z.number().optional(),
+  longitude: z.number().optional(),
+  locationAddress: z.string().optional(),
 });
 
 const checkOutSchema = z.object({
